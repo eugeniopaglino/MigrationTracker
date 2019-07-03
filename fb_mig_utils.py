@@ -25,6 +25,11 @@ def gen_mig_table(access_token, user_id, destinations = 'all', origins = 'all', 
         - user_id: your facebook user id;
         - age_min and age_max: the minimum and maximum age users should have to be included in your
                                estimates.
+			       
+    This function uses the get_mig_table_timeout function to perform the api calls but is able to handle 
+    the timeout errors which occur if too many requests are forwarded to the api in a short period of time.
+    It does so by pausing the execution and restarting it after five minutes and by regulating the delay
+    between calls.
     '''
 
     FacebookAdsApi.init(access_token=access_token)
@@ -159,12 +164,12 @@ def get_mig_table_timeout(access_token, user_id, mig_table, destinations, origin
 def get_mig_table(access_token, user_id, destinations = 'all', origins = 'all', age_min = 18, age_max = 65):
     
     '''
-    This function call the Facebook Ads Api and returns a table whose index is a list of receiving
+    This function calls the Facebook Marketing Api and returns a table whose index is a list of receiving
     countries passed through the destinations variable and whose columns are the sending countries
     passed through the origins list. Notice that the number returned refer to the stock of 
     migrants from a given sending country to a given receving country (as estimated by Facebook) and
     are updated to the moment when the function is called. In order for the function to work the
-    Facebook Ads Api needs to be set.
+    Facebook Api needs to be set.
     
     Arguments:
         
@@ -175,7 +180,15 @@ def get_mig_table(access_token, user_id, destinations = 'all', origins = 'all', 
         - user_id: your facebook user id;
         - age_min and age_max: the minimum and maximum age users should have to be included in your
                                estimates.
-                   
+			       
+    The use of this function is recommended over the use of the gen_mig_table function when the amount of
+    information you want to retrieve is fairly small (about 70 calls). The amount of calls the funtion
+    performs can be calculated through the following expression:
+   
+    		number_of_calls = number_of_origins*(number_of_destinations + 1) + 2
+		
+    if you left the destinations or the origins unspecified, the function defaults to all the ones available
+    and you should add 1 call for each unspecified parameter.
     '''
 
     FacebookAdsApi.init(access_token=access_token)
@@ -228,7 +241,7 @@ def get_destinations(access_token):
     
     '''
     Gets an updated dictionaty of available destinations names and corresponding codes
-    from facebook api.
+    from Facebook Api.
     '''
     
     FacebookAdsApi.init(access_token=access_token)
@@ -256,7 +269,7 @@ def get_origins(access_token):
     
     '''
     Gets an updated dictionaty of available origins names and corresponding codes
-    from facebook api.
+    from Facebook Api.
     '''
     
     FacebookAdsApi.init(access_token=access_token)
