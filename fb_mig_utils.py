@@ -1,10 +1,13 @@
 import pandas as pd
 import time
+from tqdm import tqdm, tnrange, tqdm_notebook
 
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.adobjects.reachestimate import ReachEstimate
 from facebook_business.api import FacebookAdsApi
 from facebook_business.adobjects.targetingsearch import TargetingSearch
+
+from dem_utils import get_age_groups
 
 def gen_mig_table(access_token, user_id, destinations = 'all', origins = 'all', age_min = 18, age_max = 65):
     
@@ -69,7 +72,7 @@ def gen_mig_table(access_token, user_id, destinations = 'all', origins = 'all', 
                                                                                    call_counter,
                                                                                    delay)
             
-            print('{} seconds have passed'.format(start_time-time.time()))
+            print('{} seconds have passed'.format(time.time() - start_time))
 
             
             if len(destinations)>0:
@@ -119,8 +122,8 @@ def get_mig_table_timeout(access_token, user_id, mig_table, destinations, origin
     
     try:
     
-        for destination in destinations:
-            for origin in origins:
+        for destination in tqdm_notebook(destinations, desc='destinations_loop'):
+            for origin in tqdm_notebook(origins, desc='origins_loop'):
 
                 fields = []
                 params = {
@@ -274,14 +277,14 @@ def get_origins(access_token):
 
     resp = TargetingSearch.search(params=params)
 
-    country_dict = {}
-
+    country_dict = {} 
+    
     for i in range(len(resp)):
 
-        if resp[i]['path'][0]=='Expats' and resp[i]['name'].find('Lived in')==0:
+        if resp[i]['path'][0]=='Ex-pats' and resp[i]['path'][1].find('Lived in')==0:
 
-            char_name_starts = resp[i]['name'].find('- ')+2
-            char_name_ends = len(resp[i]['name'])-1
+            char_name_starts = 9
+            char_name_ends = resp[i]['name'].find('(formerly') -1
             country = resp[i]['name'][char_name_starts:char_name_ends]
             country_id = resp[i]['id']
             country_name = resp[i]['name']
@@ -308,4 +311,128 @@ def check_countries(countries, countries_dict):
     for country in countries:
         
         assert (country in countries_dict), error_message.format(country)
+    
+def get_age_structure_table_do(access_token, user_id, destinations, origins, age_min=13, age_max=65):
+    
+    '''
+    This function creates a table for each destination-origin pair with the sex-age structure of
+    the corresponding population. Age groups contain five years each and are constructed so that
+    the lower age limit is always a multiple of five with the exception of the first and the last
+    group. The output of the function is a dictionary with destinations as the keys, origins as the
+    primary features, and an age-sex structure table for every pair.
+    '''
+    
+    FacebookAdsApi.init(access_token=access_token)
+    
+    age_groups = get_age_groups(age_min,age_max)
+    genders = {1:{'name' : 'male'}, 2:{'name' : 'female'}}
+    
+    age_groups_names = [list(age_groups.values())[x]['name'] for x in range(len(age_groups))]
+    genders_names = [list(genders.values())[x]['name'] for x in range(len(genders))]
+    
+    dest_dict = get_destinations(access_token)
+    origin_dict =  get_origins(access_token)
+    
+    check_countries(destinations,dest_dict)
+    check_countries(origins,origin_dict)
+    
+    age_str_dict= {}
+    age_str_table = pd.DataFrame(0, index=age_groups_names, columns=genders_names)
+    
+    for destination in destinations:
+        for origin in origins:
+            for gender in genders:
+                for age_group in age_groups:
+                    
+                    if len(age_group) == 1:
+
+                        fields = []
+                        params = {
+                                  'targeting_spec': {'geo_locations':{'countries':[dest_dict[destination]['code']]},
+                                                     'genders': [gender],
+                                                     'age_min': age_group[0],
+                                                     'behaviors':[{'id': origin_dict[origin]['id'],
+                                                                     'name': origin_dict[origin]['name']}],
+                                                    },
+                                 }
+
+                    else:
+                        
+                        fields = []
+                        params = {
+                                  'targeting_spec': {'geo_locations':{'countries':[dest_dict[destination]['code']]},
+                                                     'genders': [gender],
+                                                     'age_min': age_group[0],
+                                                     'age_max': age_group[1],
+                                                     'behaviors':[{'id': origin_dict[origin]['id'],
+                                                                     'name': origin_dict[origin]['name']}],
+                                                    },
+                                 }
+
+                    age_str_table.loc[age_groups[age_group]['name'],
+                                genders[gender]['name']] = AdAccount(user_id).get_reach_estimate(fields=fields,
+                                                                      params=params)[0]['users']
+                    
+            age_str_dict[destination] = {origin : {'age_structure_table' : age_str_table[:]}}
+            age_str_table = pd.DataFrame(0, index=age_groups_names, columns=genders_names)        
+            
+    return age_str_dict
+
+def get_age_structure_table_d(access_token, user_id, destinations, age_min=13, age_max=65):
+    
+    '''
+    This function creates a table for each destination  with the sex-age structure of
+    the corresponding population. Age groups contain five years each and are constructed so that
+    the lower age limit is always a multiple of five with the exception of the first and the last
+    group. The output of the function is a dictionary with destinations as the keys and an age-sex
+    structure table for each one of them.
+    '''
+    
+    FacebookAdsApi.init(access_token=access_token)
+    
+    age_groups = get_age_groups(age_min,age_max)
+    genders = {1:{'name' : 'male'}, 2:{'name' : 'female'}}
+    
+    age_groups_names = [list(age_groups.values())[x]['name'] for x in range(len(age_groups))]
+    genders_names = [list(genders.values())[x]['name'] for x in range(len(genders))]
+    
+    dest_dict = get_destinations(access_token)
+    check_countries(destinations,dest_dict)
+    
+    age_str_dict = {}
+    age_str_table = pd.DataFrame(0, index=age_groups_names, columns=genders_names)
+    
+    for destination in destinations:
+        for gender in genders:
+            for age_group in age_groups:
+                    
+                if len(age_group) == 1:
+
+                    fields = []
+                    params = {
+                              'targeting_spec': {'geo_locations':{'countries':[dest_dict[destination]['code']]},
+                                                 'genders': [gender],
+                                                 'age_min': age_group[0],
+                                                 },
+                              }
+
+                else:
+                        
+                    fields = []
+                    params = {
+                              'targeting_spec': {'geo_locations':{'countries':[dest_dict[destination]['code']]},
+                                                 'genders': [gender],
+                                                 'age_min': age_group[0],
+                                                 'age_max': age_group[1],
+                                                 },
+                              }
+
+                age_str_table.loc[age_groups[age_group]['name'],
+                                  genders[gender]['name']] = AdAccount(user_id).get_reach_estimate(fields=fields,
+                                                                      params=params)[0]['users']
+                
+        age_str_dict[destination] = {'age_structure_table' : age_str_table[:]}
+        age_str_table = pd.DataFrame(0, index=age_groups_names, columns=genders_names)
+            
+    return age_str_dict
         
