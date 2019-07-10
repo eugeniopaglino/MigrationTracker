@@ -3,7 +3,7 @@ def get_age_groups(age_min, age_max):
     '''
     This function generates a dictionary with age groups as keys. The keys are tuples whose first element
     is the lower age limit and whose second element is the uppper age limit for each group. Each key has
-    a unique feature 'name' that contains a string with the following structure: 'lower_limit - upper_limit'.
+    a unique feature 'name' that contains a string with the following structure: lower_limit - upper_limit.
     
     Each group contains five years and is constructed in such a way that the lower limit is a multiple of
     five exception made for the first and the last group.
@@ -18,7 +18,7 @@ def get_age_groups(age_min, age_max):
             lower_limit = i
             
             if i % 5 == 0:
-                upper_limit = i
+                upper_limit = i + 4
             else:
                 for x in range(i,i+5):
                     if x % 5 == 0:
